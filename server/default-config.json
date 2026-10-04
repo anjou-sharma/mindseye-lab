@@ -1,0 +1,89 @@
+{
+  "consentVersion": 1,
+  "consentText": "This app is also a research instrument. If you agree, your questionnaire answers, task responses and the demographic details you provide are stored on a research server under a participant ID, not your name, and may be analysed and published in aggregate. You can stop at any time. Contact details and the full consent form are in the study information below.",
+  "studyInfo": "Study title: Mental imagery across the senses. Principal investigator: [name], Imagination and Modal Cognition Lab, Duke University. IRB protocol: [number]. Contact: [email]. Data are retained for [N] years and may be shared in de-identified form. To withdraw, email your participant ID to the contact above and all server data will be deleted.",
+  "arms": [
+    "A"
+  ],
+  "assessments": {
+    "vviq": {
+      "status": "required",
+      "label": "Vividness (VVIQ-style)",
+      "desc": "16 scenes, 4 min. Places you on the spectrum."
+    },
+    "multi": {
+      "status": "required",
+      "label": "Multisensory imagery",
+      "desc": "Sight, sound, smell, taste, touch, body, feeling."
+    },
+    "spatial": {
+      "status": "optional",
+      "label": "Object vs. spatial",
+      "desc": "Pictures vs. layouts and movement."
+    },
+    "memory": {
+      "status": "optional",
+      "label": "Memory & counterfactual",
+      "desc": "Recall an event, then imagine it differently.",
+      "requires": [
+        "vviq"
+      ]
+    },
+    "rot": {
+      "status": "required",
+      "label": "Mental rotation",
+      "desc": "16 trials with confidence ratings."
+    },
+    "span": {
+      "status": "optional",
+      "label": "Pattern span",
+      "desc": "Visual short-term memory."
+    },
+    "col": {
+      "status": "optional",
+      "label": "Imagery color match",
+      "desc": "Imagine a blend, pick the swatch."
+    }
+  },
+  "experiments": {
+    "interference": {
+      "status": "optional",
+      "label": "Imagery & perception",
+      "desc": "Does imagining a color change what you can see? 24 quick trials.",
+      "requires": [
+        "vviq"
+      ]
+    },
+    "scene": {
+      "status": "optional",
+      "label": "Scene memory, two sessions",
+      "desc": "Learn a scene today, get tested again tomorrow. Objects vs. locations."
+    },
+    "emotion": {
+      "status": "optional",
+      "label": "Imagery & feeling",
+      "desc": "Read four short scenes, imagine each, rate how it moves you. Surprise memory test."
+    },
+    "decay": {
+      "status": "optional",
+      "label": "Holding an image",
+      "desc": "How long can you keep a picture steady? 90 seconds."
+    },
+    "draw": {
+      "status": "optional",
+      "label": "Draw it from memory",
+      "desc": "Study a scene, then draw it. Objects vs. layout, as in the drawing studies."
+    },
+    "rivalry": {
+      "status": "optional",
+      "label": "Binocular rivalry (needs red/cyan glasses)",
+      "desc": "The lab-standard objective imagery test, with cheap anaglyph glasses. 16 trials."
+    },
+    "pupil": {
+      "status": "optional",
+      "label": "Pupil & imagery (camera, experimental)",
+      "desc": "Imagine bright and dark shapes while the front camera measures your pupils."
+    }
+  },
+  "_doc": "status: required | optional | blocked (shown as unavailable) | hidden (not shown). requires: keys that must be complete first. arms: list of arms that see it (omit = all). notBefore: ISO date the item opens. Arms are assigned server-side, balanced by count."
+}

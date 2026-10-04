@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mind's Eye Lab — Admin</title>
+<style>
+:root{--bg:#f4f2fa;--surface:#fff;--line:#d9d4e8;--fg:#1d1836;--muted:#625c7c;--accent:#5a3fd6;--good:#1f9a5a;--crit:#d6433b;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#14112a;--surface:#1d1938;--line:#38325e;--fg:#f0edfa;--muted:#a9a2c6;--accent:#9b84ff;color-scheme:dark}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 "IBM Plex Sans",system-ui,sans-serif;padding:16px}
+h1,h2{margin:0 0 8px}.wrap{max-width:1200px;margin:0 auto;display:grid;gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0;overflow-x:auto}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.stat b{font-size:1.5rem;display:block}.stat span{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
+table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--muted);font-weight:500;cursor:pointer}
+button,input,select,textarea{font:inherit;color:inherit;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px}button{cursor:pointer}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted)}textarea{width:100%;min-height:320px;font-family:ui-monospace,monospace;font-size:12px}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;background:var(--line);font-size:11px}.ok{color:var(--good)}.bad{color:var(--crit)}
+pre{white-space:pre-wrap;font-size:12px;max-height:60vh;overflow:auto}
+</style></head><body><div class="wrap">
+<div class="row" style="justify-content:space-between"><h1>Mind's Eye Lab — research admin</h1><div class="row"><input id="tok" type="password" placeholder="Admin token" style="width:220px"><button class="primary" id="login">Connect</button></div></div>
+
+<div class="card"><h2>Summary</h2><div class="stats" id="summary"><span class="muted">Connect with the admin token.</span></div></div>
+
+<div class="card"><div class="row" style="justify-content:space-between"><h2>Participants</h2><div class="row"><input id="filter" placeholder="Filter by ID, arm, source…"><button id="refresh">Refresh</button></div></div>
+<table id="ptab"><thead><tr><th data-k="pid">ID</th><th data-k="arm">Arm</th><th data-k="research">Consent</th><th data-k="age">Age</th><th data-k="gender">Gender</th><th data-k="source">Source</th><th data-k="screen">Screener</th><th data-k="vviq">VVIQ</th><th data-k="multiLow">Low senses</th><th data-k="rot">Rot %</th><th data-k="slope">ms/°</th><th data-k="meta">Meta</th><th data-k="span">Span</th><th data-k="checkins">Check-ins</th><th data-k="sessions">Training</th><th data-k="exp">Experiments</th><th data-k="n_events">Events</th><th data-k="updated_at">Updated</th><th></th></tr></thead><tbody></tbody></table></div>
+
+<div class="card"><h2>Export</h2><div class="row">
+<a id="x-all" download><button>All events (CSV, long format)</button></a>
+<select id="x-type"><option value="">Choose event type…</option><option>enrol</option><option>screener</option><option>questionnaire</option><option>memory</option><option>task</option><option>strategy</option><option>checkin</option><option>training</option><option>experiment</option><option>practice</option><option>sport</option><option>game</option><option>sport_tool</option><option>state</option><option>app</option><option>withdraw</option></select>
+<a id="x-typed" download><button>This type (CSV)</button></a>
+<a id="x-json" download><button>Everything (JSON)</button></a></div>
+<p class="muted">CSV rows are one event each; nested payload fields are flattened with dots (e.g. <code>result.total</code>); arrays are JSON strings. Trial-level logs live in the <code>log</code> column; unpack them in R with <code>jsonlite::fromJSON</code>.</p></div>
+
+<div class="card"><h2>Study config</h2><p class="muted">Controls what every participant sees. <code>status</code>: required · optional · blocked (shown, unavailable) · hidden. <code>requires</code>: keys that must be complete first. <code>arms</code>: which arms see it. <code>notBefore</code>: ISO date it opens. Arms are assigned server-side, balanced by count. Changes take effect on each participant's next app launch.</p>
+<textarea id="cfg"></textarea><div class="row"><button class="primary" id="savecfg">Save config</button><span id="cfgmsg" class="muted"></span></div></div>
+
+<div class="card" id="detail" hidden><div class="row" style="justify-content:space-between"><h2 id="d-title"></h2><div class="row"><button id="d-del" class="bad">Delete participant (withdrawal)</button><button id="d-close">Close</button></div></div><pre id="d-body"></pre></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);let TOK=sessionStorage.getItem('mel-admin')||'';$('#tok').value=TOK;
+const api=async(p,o={})=>{const r=await fetch(p,{...o,headers:{'Content-Type':'application/json',Authorization:'Bearer '+TOK,...(o.headers||{})}});if(r.status===401)throw new Error('Bad token');return r.json()};
+let ROWS=[],sortK='updated_at',sortD=-1;
+async function load(){
+  try{const s=await api('/admin/api/summary');$('#summary').innerHTML=[['Participants',s.participants],['Active last 7 days',s.activeLast7d],['With VVIQ',s.vviqN],['Aphantasia (≤32)',s.bands.aphantasia],['Low (33–47)',s.bands.low],['Typical',s.bands.typical],['Hyper (≥75)',s.bands.hyper]].map(([l,v])=>'<div class="stat"><b>'+v+'</b><span>'+l+'</span></div>').join('')+'<div class="stat"><b>'+s.byArm.map(a=>(a.arm||'?')+':'+a.n).join(' ')+'</b><span>By arm</span></div>';
+    ROWS=await api('/admin/api/participants');render();const c=await api('/admin/api/config');$('#cfg').value=JSON.stringify(c,null,2);
+    ['x-all','x-typed','x-json'].forEach(id=>{});setLinks();
+  }catch(e){$('#summary').innerHTML='<span class="bad">'+e.message+'</span>'}
+}
+function setLinks(){$('#x-all').href='/admin/api/export.csv?token='+encodeURIComponent(TOK);$('#x-json').href='/admin/api/export.json?token='+encodeURIComponent(TOK);$('#x-typed').href='/admin/api/export.csv?token='+encodeURIComponent(TOK)+'&type='+encodeURIComponent($('#x-type').value)}
+$('#x-type').onchange=setLinks;
+function render(){const f=$('#filter').value.toLowerCase();const rows=ROWS.filter(r=>!f||JSON.stringify(r).toLowerCase().includes(f)).sort((a,b)=>{const x=a[sortK],y=b[sortK];return (x==null?1:y==null?-1:x>y?1:x<y?-1:0)*sortD});
+  $('#ptab tbody').innerHTML=rows.map(r=>'<tr><td><b>'+r.pid+'</b></td><td>'+(r.arm||'')+'</td><td class="'+(r.research?'ok':'bad')+'">'+(r.research?'yes':'no')+'</td><td>'+(r.age||'')+'</td><td>'+(r.gender||'')+'</td><td>'+(r.source||'')+'</td><td>'+(r.screen??'')+'</td><td>'+(r.vviq??'')+'</td><td>'+(r.multiLow??'')+'</td><td>'+(r.rot??'')+'</td><td>'+(r.slope??'')+'</td><td>'+(r.meta??'')+'</td><td>'+(r.span??'')+'</td><td>'+r.checkins+'</td><td>'+r.sessions+'</td><td>'+(r.exp||[]).map(e=>'<span class="pill">'+e+'</span>').join(' ')+'</td><td>'+r.n_events+'</td><td class="muted">'+r.updated_at+'</td><td><button data-pid="'+r.pid+'">View</button></td></tr>').join('')||'<tr><td colspan="19" class="muted">No participants yet.</td></tr>';
+  document.querySelectorAll('[data-pid]').forEach(b=>b.onclick=()=>view(b.dataset.pid))}
+document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{if(sortK===th.dataset.k)sortD*=-1;else{sortK=th.dataset.k;sortD=-1}render()});
+$('#filter').oninput=render;$('#refresh').onclick=load;
+$('#login').onclick=()=>{TOK=$('#tok').value.trim();sessionStorage.setItem('mel-admin',TOK);load()};
+$('#savecfg').onclick=async()=>{try{const c=JSON.parse($('#cfg').value);await api('/admin/api/config',{method:'PUT',body:JSON.stringify(c)});$('#cfgmsg').textContent='Saved.'}catch(e){$('#cfgmsg').textContent='Not saved: '+e.message}};
+async function view(pid){const d=await api('/admin/api/participants/'+encodeURIComponent(pid));$('#detail').hidden=false;$('#d-title').textContent=pid+' · arm '+(d.arm||'')+' · '+d.events.length+' events';$('#d-body').textContent=JSON.stringify(d,null,2);
+  $('#d-del').onclick=async()=>{if($('#d-del').dataset.arm){await api('/admin/api/participants/'+encodeURIComponent(pid),{method:'DELETE'});$('#detail').hidden=true;load()}else{$('#d-del').dataset.arm='1';$('#d-del').textContent='Click again to permanently delete '+pid}};
+  $('#d-close').onclick=()=>{$('#detail').hidden=true};window.scrollTo(0,document.body.scrollHeight)}
+if(TOK)load();
+</script></body></html>

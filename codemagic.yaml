@@ -1,0 +1,38 @@
+# Cloud build for Capacitor iOS without a Mac.
+# 1. Push this repo to GitHub.  2. codemagic.io → add app → select repo.
+# 3. In Codemagic: Teams → Integrations → App Store Connect: upload an API key (Users & Access → Integrations → Keys).
+#    Name the integration "mindseye_asc" (or change below). Enable "Automatic code signing" with that key.
+# 4. Start the workflow. It builds, signs, and uploads to TestFlight / App Store Connect.
+workflows:
+  ios-release:
+    name: Mind's Eye Lab iOS
+    max_build_duration: 60
+    integrations:
+      app_store_connect: mindseye_asc
+    environment:
+      xcode: latest
+      node: 20
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: edu.duke.imclab.mindseye
+    scripts:
+      - name: Install and add iOS platform
+        script: |
+          npm install
+          npx cap add ios || true
+          npx cap sync ios
+      - name: Set up signing
+        script: |
+          xcode-project use-profiles
+      - name: Build IPA
+        script: |
+          cd ios/App
+          xcode-project build-ipa --workspace App.xcworkspace --scheme App
+    artifacts:
+      - ios/App/build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups: [Lab]
+        submit_to_app_store: false   # flip to true once screenshots and privacy answers are in App Store Connect
