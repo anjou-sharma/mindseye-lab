@@ -1415,25 +1415,46 @@ function sportField(cv,opts){
       c.fillStyle=limb;c.beginPath();c.arc(0,0,mr,0,Math.PI*2);c.fill();
       c.restore()}
     else if(kind==='water'){
-      const wr=br*1.15, sq=reduce?0:Math.sin(el*1.1)*.05;
-      const hg=c.createRadialGradient(0,0,wr*.4,0,0,wr*3);
-      hg.addColorStop(0,'rgba(150,220,235,.34)');hg.addColorStop(1,'rgba(150,220,235,0)');
-      c.fillStyle=hg;c.beginPath();c.arc(0,0,wr*3,0,Math.PI*2);c.fill();
+      const wr=br*1.2, sq=reduce?0:Math.sin(el*1.0)*.035;
+      const hg=c.createRadialGradient(0,wr*.25,wr*.3,0,wr*.25,wr*3.2);
+      hg.addColorStop(0,'rgba(150,224,240,.30)');hg.addColorStop(.45,'rgba(120,200,225,.10)');hg.addColorStop(1,'rgba(120,200,225,0)');
+      c.fillStyle=hg;c.beginPath();c.arc(0,wr*.25,wr*3.2,0,Math.PI*2);c.fill();
+      // teardrop: sharp apex, full round belly
       const drop=new Path2D();
-      drop.moveTo(0,-wr*1.85);
-      drop.bezierCurveTo(wr*(.86+sq),-wr*.52, wr*(1.02+sq), wr*.36, 0, wr*1.04);
-      drop.bezierCurveTo(-wr*(1.02+sq), wr*.36, -wr*(.86+sq),-wr*.52, 0,-wr*1.85);
-      const dg=c.createLinearGradient(-wr*.5,-wr*1.4,wr*.6,wr);
-      dg.addColorStop(0,'rgba(226,248,255,.96)');dg.addColorStop(.42,'rgba(129,214,235,.92)');dg.addColorStop(1,'rgba(44,128,156,.95)');
+      drop.moveTo(0,-wr*1.95);
+      drop.bezierCurveTo(wr*(.30+sq),-wr*1.15, wr*(1.00+sq),-wr*.22, wr*(1.00+sq), wr*.30);
+      drop.bezierCurveTo(wr*(1.00+sq), wr*1.02, wr*.56, wr*1.42, 0, wr*1.42);
+      drop.bezierCurveTo(-wr*.56, wr*1.42, -wr*(1.00+sq), wr*1.02, -wr*(1.00+sq), wr*.30);
+      drop.bezierCurveTo(-wr*(1.00+sq),-wr*.22, -wr*(.30+sq),-wr*1.15, 0,-wr*1.95);
+      // body: dark and translucent at the top, light pooling at the base
+      const dg=c.createLinearGradient(0,-wr*1.9,0,wr*1.42);
+      dg.addColorStop(0,'rgba(104,170,196,.55)');dg.addColorStop(.40,'rgba(78,150,180,.62)');
+      dg.addColorStop(.72,'rgba(126,206,230,.80)');dg.addColorStop(1,'rgba(226,250,255,.94)');
       c.fillStyle=dg;c.fill(drop);
       c.save();c.clip(drop);
-      const lens=c.createRadialGradient(wr*.1,wr*.5,wr*.05,wr*.1,wr*.5,wr*.95);
-      lens.addColorStop(0,'rgba(236,252,255,.85)');lens.addColorStop(1,'rgba(236,252,255,0)');
-      c.fillStyle=lens;c.fillRect(-wr*2,-wr*2,wr*4,wr*4);
-      c.fillStyle='rgba(255,255,255,.92)';c.beginPath();c.ellipse(-wr*.34,wr*.12,wr*.17,wr*.30,-.45,0,Math.PI*2);c.fill();
-      c.fillStyle='rgba(255,255,255,.55)';c.beginPath();c.ellipse(-wr*.12,-wr*.82,wr*.08,wr*.16,-.2,0,Math.PI*2);c.fill();
+      // caustic: light focused through the drop onto its lower wall
+      const ca=c.createRadialGradient(wr*.06,wr*.80,wr*.04,wr*.06,wr*.80,wr*.92);
+      ca.addColorStop(0,'rgba(255,255,255,.95)');ca.addColorStop(.35,'rgba(214,246,255,.55)');ca.addColorStop(1,'rgba(214,246,255,0)');
+      c.fillStyle=ca;c.fillRect(-wr*2,-wr*2.4,wr*4,wr*4.4);
+      // darker shoulders, so the glass reads as curved
+      const sh=c.createRadialGradient(0,wr*.1,wr*.30,0,wr*.1,wr*1.25);
+      sh.addColorStop(0,'rgba(0,0,0,0)');sh.addColorStop(1,'rgba(14,52,70,.42)');
+      c.fillStyle=sh;c.fillRect(-wr*2,-wr*2.4,wr*4,wr*4.4);
+      // inner rim light along the bottom edge (total internal reflection)
+      c.strokeStyle='rgba(255,255,255,.80)';c.lineWidth=Math.max(1,wr*.10);
+      c.beginPath();c.arc(0,wr*.42,wr*.98,Math.PI*.18,Math.PI*.82);c.stroke();
+      // specular: the sharp window reflection, plus a soft secondary
+      c.fillStyle='rgba(255,255,255,.96)';
+      c.beginPath();c.ellipse(-wr*.40,-wr*.18,wr*.135,wr*.33,-.34,0,Math.PI*2);c.fill();
+      c.fillStyle='rgba(255,255,255,.55)';
+      c.beginPath();c.ellipse(-wr*.20,-wr*.95,wr*.07,wr*.15,-.22,0,Math.PI*2);c.fill();
+      c.fillStyle='rgba(255,255,255,.40)';
+      c.beginPath();c.ellipse(wr*.42,wr*.02,wr*.06,wr*.16,.42,0,Math.PI*2);c.fill();
       c.restore();
-      c.strokeStyle='rgba(222,248,255,.45)';c.lineWidth=Math.max(1,wr*.045);c.stroke(drop)}
+      // outline: faint at the apex, bright where light gathers at the foot
+      c.strokeStyle='rgba(188,232,246,.28)';c.lineWidth=Math.max(1,wr*.035);c.stroke(drop);
+      c.save();c.clip(drop);
+      c.strokeStyle='rgba(240,253,255,.60)';c.lineWidth=Math.max(1,wr*.05);c.stroke(drop);c.restore()}
     else if(kind==='ember'){
       const fh=br*2.5, fw=br*.95;
       const hg=c.createRadialGradient(0,fh*.1,fw*.2,0,fh*.1,fh*1.5);
@@ -1458,13 +1479,33 @@ function sportField(cv,opts){
     else if(kind==='dusk'||kind==='sunrise'){
       const P=kind==='dusk'?['255,140,60','#fff0c8','#ffb457','#e4651f']:['255,214,170','#ffffff','#ffeccb','#f7b572'];
       const sr=br*(kind==='dusk'?1.55:1.25);
-      const hg=c.createRadialGradient(0,0,sr*.45,0,0,sr*4.4);
-      hg.addColorStop(0,'rgba('+P[0]+',.52)');hg.addColorStop(.3,'rgba('+P[0]+',.22)');hg.addColorStop(1,'rgba('+P[0]+',0)');
-      c.fillStyle=hg;c.beginPath();c.arc(0,0,sr*4.4,0,Math.PI*2);c.fill();
+      const hg=c.createRadialGradient(0,0,sr*.45,0,0,sr*4.6);
+      hg.addColorStop(0,'rgba('+P[0]+',.50)');hg.addColorStop(.3,'rgba('+P[0]+',.20)');hg.addColorStop(1,'rgba('+P[0]+',0)');
+      c.fillStyle=hg;c.beginPath();c.arc(0,0,sr*4.6,0,Math.PI*2);c.fill();
+      // rays: long and short, alternating, breathing slowly
+      c.save();c.globalCompositeOperation='lighter';
+      const NR=16;
+      for(let i=0;i<NR;i++){
+        const a=i*Math.PI*2/NR+(reduce?0:el*.045);
+        const long=i%2===0;
+        const puls=reduce?1:1+Math.sin(el*1.5+i*1.1)*(long?.16:.24);
+        const len=sr*(long?3.5:2.15)*puls;
+        const halfW=sr*(long?.085:.055);
+        const rg=c.createLinearGradient(0,0,Math.cos(a)*len,Math.sin(a)*len);
+        rg.addColorStop(0,'rgba('+P[0]+','+(long?.34:.24)+')');
+        rg.addColorStop(.42,'rgba('+P[0]+','+(long?.16:.10)+')');
+        rg.addColorStop(1,'rgba('+P[0]+',0)');
+        c.fillStyle=rg;
+        c.beginPath();
+        c.moveTo(Math.cos(a+halfW)*sr*.92, Math.sin(a+halfW)*sr*.92);
+        c.lineTo(Math.cos(a)*len, Math.sin(a)*len);
+        c.lineTo(Math.cos(a-halfW)*sr*.92, Math.sin(a-halfW)*sr*.92);
+        c.closePath();c.fill()}
+      c.restore();
       const dg=c.createRadialGradient(0,-sr*.12,sr*.08,0,0,sr);
       dg.addColorStop(0,P[1]);dg.addColorStop(.58,P[2]);dg.addColorStop(1,P[3]);
       c.fillStyle=dg;c.beginPath();c.arc(0,0,sr,0,Math.PI*2);c.fill();
-      c.strokeStyle='rgba(255,236,200,.35)';c.lineWidth=Math.max(1,sr*.05);c.beginPath();c.arc(0,0,sr*1.06,0,Math.PI*2);c.stroke()}
+      c.strokeStyle='rgba(255,240,210,.40)';c.lineWidth=Math.max(1,sr*.05);c.beginPath();c.arc(0,0,sr*1.07,0,Math.PI*2);c.stroke()}
     else if(kind==='neutral'){
       const G=['185,180,255','#ffffff','#cfc9ff','#9b90ff'];
       const hg=c.createRadialGradient(0,0,0,0,0,br*2.9);hg.addColorStop(0,'rgba('+G[0]+',.55)');hg.addColorStop(.5,'rgba('+G[0]+',.18)');hg.addColorStop(1,'rgba('+G[0]+',0)');
