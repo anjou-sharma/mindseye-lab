@@ -1662,10 +1662,16 @@ function exportSheets(){
     sum.push(['Mental rotation slope',S.rot.slope,'ms per degree','','']);
     sum.push(['Metacognitive tracking',S.rot.meta,'accuracy sure - guessing','',''])}
   if(S.span)sum.push(['Pattern span',S.span.span,'items',_d(S.span.date),'']);
-  if(S.memory)Object.keys(S.memory).forEach(function(k){const v=S.memory[k];
-    if(v===null||v===undefined||typeof v==='object')return;
-    if(k==='date')return;
-    sum.push(['Memory task: '+k,(typeof v==='string'&&v.length>200)?v.slice(0,200)+'…':v,'',_d(S.memory.date),''])});
+  if(S.memory){const MT={recall:'Recall',cf:'Counterfactual'},
+    MR={viv:'vividness',det:'perceptual detail',emo:'emotion',plaus:'plausibility'};
+    Object.keys(S.memory).forEach(function(k){const v=S.memory[k];
+      if(k==='date'||!v||typeof v!=='object')return;
+      const label=MT[k]||k;
+      if(v.words!=null)sum.push(['Written response: '+label,v.words,'words written',_d(S.memory.date),'']);
+      Object.keys(v).forEach(function(f){
+        if(f==='text'||f==='words')return;
+        if(typeof v[f]!=='number')return;
+        sum.push(['Written response: '+label+' — '+(MR[f]||f),v[f],'1-7',_d(S.memory.date),''])})})}
   if(S.col)sum.push(['Imagery colour match',S.col.acc,'proportion correct',_d(S.col.date),'']);
   Object.keys(S.levels||{}).forEach(function(k){sum.push(['Training level: '+k,S.levels[k],'','',''])});
   Object.keys(S.strategy||{}).forEach(function(k){sum.push(['Strategy: '+k,S.strategy[k],'','',''])});
@@ -1698,6 +1704,21 @@ function exportSheets(){
   const tr=[['Date','Game','Level','Passed','Score']];
   (S.trainLog||[]).forEach(function(x){tr.push([x.date,x.game,x.level,x.passed?'yes':'no',x.score])});
   if(tr.length>1)sheets.push({name:'Training games',rows:tr});
+  /* Written responses — full text, never truncated */
+  if(S.memory){
+    const MT={recall:'Recall',cf:'Counterfactual'},
+      MP={recall:'Think of one specific event from the last week that lasted minutes to hours. Describe it.',
+          cf:'Now imagine that same event going differently in one way. Describe how it could have unfolded.'},
+      MR={viv:'Vividness',det:'Perceptual detail',emo:'Emotion',plaus:'Plausibility'};
+    const wr=[['Prompt','Date','Words','Vividness','Perceptual detail','Emotion','Plausibility','Full text']];
+    ['recall','cf'].forEach(function(k){const v=S.memory[k];
+      if(!v||typeof v!=='object')return;
+      wr.push([MT[k]||k,_d(S.memory.date),v.words,v.viv,v.det,v.emo,v.plaus,v.text||''])});
+    if(wr.length>1){
+      wr.push([]);
+      wr.push(['The prompts people answered']);
+      ['recall','cf'].forEach(function(k){if(S.memory[k])wr.push([MT[k],'','','','','','',MP[k]])});
+      sheets.push({name:'Written responses',rows:wr})}}
   /* Multi-part tests */
   const ex=[['Test','Field','Value']];
   Object.keys(S.exp||{}).forEach(function(k){const o=S.exp[k]||{};
