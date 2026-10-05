@@ -81,6 +81,20 @@ In R: `jsonlite::fromJSON(df$log[i])` unpacks a trial log.
 * "Erase from this device" clears the phone; withdrawal is the admin's Delete button, which hard-deletes all rows.
 * The questionnaire items are original paraphrases. Swap in the licensed VVIQ / Psi-Q / OSIVQ items before publishing results.
 
+## Not yet implemented (planned for 1.1)
+
+Three experiments are described in the config and the data dictionary below but have
+**no handler written yet**: `expDraw()`, `expRivalry()` and `expPupil()` are called from
+`runExp()` in `web/index.html` but never defined. They are set to `status:'hidden'` in both
+`web/index.html` and `server/default-config.json` so they do not appear in the UI; set them
+back to `optional` only once the handlers exist, or tapping one throws a ReferenceError.
+
+| Key | What it needs |
+| --- | --- |
+| `draw` | Drawing canvas with stroke capture (normalised x,y per stroke), object tagging, lure scoring |
+| `rivalry` | Red/cyan anaglyph trials; requires the participant to have glasses |
+| `pupil` | Front-camera capture, on-device iris ÷ eye-width measurement, bright/dark view and imagery blocks. Also needs `NSCameraUsageDescription` in `ios/App/App/Info.plist` and changes the App Store privacy answers from "Data Not Collected" to declaring camera use. Webcam pupillometry is noisy — validate against a lab instrument before treating it as an objective imagery measure. |
+
 ## What's inside the app
 
 **Assessments:** single-item screener (asked before any framing), VVIQ-style vividness (16), multisensory (7 senses × 3),
