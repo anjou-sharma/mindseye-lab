@@ -456,7 +456,7 @@ canvas.shape{background:var(--surface);border:1px solid var(--line);border-radiu
   <div class="card stack">
     <div class="eyebrow">Your data</div>
     <p class="muted" style="font-size:.85rem" id="data-status"></p>
-    <div class="row"><button id="copy-json">Copy results as JSON</button><button id="sync-now">Sync now</button><button id="reset" class="ghost">Erase from this device</button></div>
+    <div class="row"><button class="primary" id="export-xlsx">Export to Excel</button><button id="copy-json">Copy results as JSON</button><button id="sync-now">Sync now</button><button id="reset" class="ghost">Erase from this device</button></div>
     <p class="muted" id="copy-msg" style="font-size:.82rem"></p>
   </div>
 </section>
@@ -826,6 +826,7 @@ function rejoin(){const act=$('#consent-actions');act.innerHTML='<label class="r
     if(!S.demo){save();renderDemo();go('onboard');obShow('ob-demo');return}
     S.arm=S.arm||pick(CONFIG.arms||['A']);save();try{if(API_BASE)await api('/api/participants',{method:'POST',body:{pid:S.pid,code:S.code,demo:S.demo,arm:S.arm,consent:S.consent,device:S.device}})}catch(e){}
     record('enrol',{demo:S.demo,arm:S.arm,consent:S.consent,device:S.device,rejoin:true});renderConsent();renderSync()}}
+$('#export-xlsx').onclick=exportExcel;
 $('#copy-json').onclick=async()=>{const txt=JSON.stringify(snapshot(),null,2);try{await navigator.clipboard.writeText(txt);$('#copy-msg').textContent='Copied.'}catch(e){$('#copy-msg').textContent=txt.slice(0,2000)}};
 $('#sync-now').onclick=()=>{flush();$('#copy-msg').textContent=API_BASE?'Syncing…':'This build has no server configured.'};
 $('#reset').onclick=()=>{if($('#reset').dataset.arm){try{localStorage.removeItem(KEY)}catch(e){}location.reload()}else{$('#reset').dataset.arm='1';$('#reset').textContent='Tap again to confirm (server copy is kept)'}};
@@ -1590,6 +1591,140 @@ function renderThemePicker(){const el=$('#theme-pick');if(!el)return;const cur=S
 /* ---------- palette ---------- */
 function setPal(p){if(p==='duke')document.documentElement.setAttribute('data-palette','duke');else document.documentElement.removeAttribute('data-palette');$$('.pal button').forEach(b=>b.classList.toggle('on',b.dataset.pal===p));try{localStorage.setItem(KEY+'-pal',p)}catch(e){}}
 $$('.pal button').forEach(b=>b.onclick=()=>setPal(b.dataset.pal));let pal='violet';try{pal=localStorage.getItem(KEY+'-pal')||'violet'}catch(e){}setPal(pal);
+
+
+/* ================= Excel export =================
+   Builds a real multi-sheet .xlsx in the browser: a ZIP (stored, no deflate) of
+   SpreadsheetML parts. No libraries, no network — the file never leaves the device
+   unless the person chooses to share it. */
+const _CRC=(function(){const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0}return t})();
+function _crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=_CRC[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function _enc(str){return new TextEncoder().encode(str)}
+function _zip(files){
+  const u16=n=>[n&255,(n>>8)&255], u32=n=>[n&255,(n>>8)&255,(n>>16)&255,(n>>24)&255];
+  const locals=[],centrals=[];let off=0;
+  files.forEach(function(f){
+    const nb=_enc(f.name), crc=_crc32(f.data), sz=f.data.length;
+    const lh=new Uint8Array([80,75,3,4].concat(u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(sz),u32(sz),u16(nb.length),u16(0)));
+    locals.push(lh,nb,f.data);
+    centrals.push(new Uint8Array([80,75,1,2].concat(u16(20),u16(20),u16(0),u16(0),u16(0),u16(0),u32(crc),u32(sz),u32(sz),u16(nb.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off))),nb);
+    off+=lh.length+nb.length+sz});
+  const cdOff=off, cdSize=centrals.reduce((a,x)=>a+x.length,0);
+  const eocd=new Uint8Array([80,75,5,6].concat(u16(0),u16(0),u16(files.length),u16(files.length),u32(cdSize),u32(cdOff),u16(0)));
+  const all=locals.concat(centrals,[eocd]);
+  const out=new Uint8Array(all.reduce((a,x)=>a+x.length,0));let q=0;
+  all.forEach(function(x){out.set(x,q);q+=x.length});
+  return out;
+}
+function _col(n){let s='';n++;while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26}return s}
+function _x(v){return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'')}
+function _sheetXml(rows){
+  let x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+  rows.forEach(function(row,r){
+    x+='<row r="'+(r+1)+'">';
+    row.forEach(function(v,ci){
+      if(v===null||v===undefined||v==='')return;
+      const ref=_col(ci)+(r+1);
+      if(typeof v==='number'&&isFinite(v))x+='<c r="'+ref+'"><v>'+v+'</v></c>';
+      else x+='<c r="'+ref+'" t="inlineStr"><is><t xml:space="preserve">'+_x(v)+'</t></is></c>'});
+    x+='</row>'});
+  return x+'</sheetData></worksheet>';
+}
+function _xlsx(sheets){
+  const NS='http://schemas.openxmlformats.org/';
+  const names=sheets.map(function(sh,i){return (sh.name||('Sheet'+(i+1))).replace(/[\\\/\?\*\[\]:]/g,' ').slice(0,31)});
+  const f=[];
+  f.push({name:'[Content_Types].xml',data:_enc('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="'+NS+'package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'+sheets.map(function(sh,i){return '<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'}).join('')+'</Types>')});
+  f.push({name:'_rels/.rels',data:_enc('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="'+NS+'package/2006/relationships"><Relationship Id="rId1" Type="'+NS+'officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>')});
+  f.push({name:'xl/workbook.xml',data:_enc('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="'+NS+'spreadsheetml/2006/main" xmlns:r="'+NS+'officeDocument/2006/relationships"><sheets>'+names.map(function(nm,i){return '<sheet name="'+_x(nm)+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>'}).join('')+'</sheets></workbook>')});
+  f.push({name:'xl/_rels/workbook.xml.rels',data:_enc('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="'+NS+'package/2006/relationships">'+names.map(function(nm,i){return '<Relationship Id="rId'+(i+1)+'" Type="'+NS+'officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>'}).join('')+'</Relationships>')});
+  sheets.forEach(function(sh,i){f.push({name:'xl/worksheets/sheet'+(i+1)+'.xml',data:_enc(_sheetXml(sh.rows))})});
+  return _zip(f);
+}
+/* ---- turn the saved state into sheets ---- */
+function _d(ms){if(!ms)return '';try{return new Date(ms).toISOString().slice(0,10)}catch(e){return ''}}
+function _dt(ms){if(!ms)return '';try{return new Date(ms).toISOString().slice(0,19).replace('T',' ')}catch(e){return ''}}
+function _mins(ms){return (ms==null)?'':Math.round(ms/600)/100}
+function exportSheets(){
+  const sheets=[],n1=function(v){return (v==null||v==='')?'':(typeof v==='number'?v:v)};
+  /* Summary */
+  const sum=[['Measure','Value','Detail','Date','Minutes']];
+  sum.push(['Participant ID',S.pid||'','','','']);
+  sum.push(['Exported','', '', _dt(Date.now()),'']);
+  sum.push(['Sessions opened',S.sessions||0,'','','']);
+  if(S.screen!=null)sum.push(['Single-item vividness (1-5)',S.screen,'asked before any framing','','']);
+  if(S.vviq)sum.push(['VVIQ-style total',S.vviq.total,'16 items',_d(S.vviq.date),_mins(S.vviq.ms)]);
+  if(S.multi&&S.multi.mods)Object.keys(S.multi.mods).forEach(function(k){sum.push(['Multisensory: '+k,Math.round(S.multi.mods[k]*100)/100,'mean of 3 items',_d(S.multi.date),''])});
+  if(S.spatial){sum.push(['Object imagery',Math.round(S.spatial.object*100)/100,'0-1',_d(S.spatial.date),_mins(S.spatial.ms)]);
+    sum.push(['Spatial imagery',Math.round(S.spatial.spatial*100)/100,'0-1',_d(S.spatial.date),''])}
+  if(S.rot){sum.push(['Mental rotation accuracy',S.rot.acc,'proportion correct',_d(S.rot.date),'']);
+    sum.push(['Mental rotation RT',S.rot.rt,'ms mean','','']);
+    sum.push(['Mental rotation slope',S.rot.slope,'ms per degree','','']);
+    sum.push(['Metacognitive tracking',S.rot.meta,'accuracy sure - guessing','',''])}
+  if(S.span)sum.push(['Pattern span',S.span.span,'items',_d(S.span.date),'']);
+  if(S.memory)Object.keys(S.memory).forEach(function(k){const v=S.memory[k];
+    if(v===null||v===undefined||typeof v==='object')return;
+    if(k==='date')return;
+    sum.push(['Memory task: '+k,(typeof v==='string'&&v.length>200)?v.slice(0,200)+'…':v,'',_d(S.memory.date),''])});
+  if(S.col)sum.push(['Imagery colour match',S.col.acc,'proportion correct',_d(S.col.date),'']);
+  Object.keys(S.levels||{}).forEach(function(k){sum.push(['Training level: '+k,S.levels[k],'','',''])});
+  Object.keys(S.strategy||{}).forEach(function(k){sum.push(['Strategy: '+k,S.strategy[k],'','',''])});
+  if(S.demo)Object.keys(S.demo).forEach(function(k){if(S.demo[k])sum.push(['Demographic: '+k,S.demo[k],'','',''])});
+  sheets.push({name:'Summary',rows:sum});
+  /* Questionnaire items */
+  const items=[['Questionnaire','Item','Response','Date']];
+  [['VVIQ-style','vviq'],['Multisensory','multi'],['Object vs spatial','spatial']].forEach(function(q){
+    const o=S[q[1]];if(o&&o.items)o.items.forEach(function(v,i){items.push([q[0],i+1,v,_d(o.date)])})});
+  if(items.length>1)sheets.push({name:'Questionnaire items',rows:items});
+  /* Guided practices */
+  const pr=[['Date','Practice','Vividness before','Vividness after','Change','Ease','Minutes','Steps done','Completed']];
+  (S.practices||[]).forEach(function(x){pr.push([x.date,x.k,x.pre,x.post,(x.post!=null&&x.pre!=null)?x.post-x.pre:'',x.ease,_mins(x.ms),x.steps,x.completed?'yes':'no'])});
+  if(pr.length>1)sheets.push({name:'Guided practices',rows:pr});
+  /* Visualization sessions */
+  const sp=[['Date','Sport','Perspective','Minutes','Steps','Completed','Conf before','Conf after','Nerves before','Nerves after','Vividness after','Control after']];
+  ((S.sport&&S.sport.sessions)||[]).forEach(function(x){const a=x.pre||{},b=x.post||{};
+    sp.push([x.date,x.sport,x.persp,_mins(x.ms),x.steps,x.completed?'yes':'no',a.conf,b.conf,a.anx,b.anx,b.viv,b.ctrl])});
+  if(sp.length>1)sheets.push({name:'Visualization sessions',rows:sp});
+  /* Games */
+  const gm=[['Date','Conf before','Nerves before','Ready','Focus','Performance','Outcome','Skill','Setback','Recovery','Matched rehearsal','Proud','Visualized first','Session minutes','Note']];
+  ((S.sport&&S.sport.games)||[]).forEach(function(g){const a=g.pre||{},b=g.post||{};
+    gm.push([g.date,a.conf,a.anx,a.ready,a.focus,b.perf,b.outcome,b.skill,(b.setback===1?'yes':b.setback===0?'no':''),b.recover,b.match,b.proud,g.sessionDone?'yes':'no',_mins(g.sessionMs),b.note])});
+  if(gm.length>1)sheets.push({name:'Games',rows:gm});
+  /* Daily check-ins */
+  const ci=[['Date','Item','Vividness','Rotation accuracy','Rotation RT (ms)','Confidence']];
+  (S.checkins||[]).forEach(function(x){ci.push([x.date,x.item,x.viv,x.acc,x.rt,x.conf])});
+  if(ci.length>1)sheets.push({name:'Daily check-ins',rows:ci});
+  /* Training */
+  const tr=[['Date','Game','Level','Passed','Score']];
+  (S.trainLog||[]).forEach(function(x){tr.push([x.date,x.game,x.level,x.passed?'yes':'no',x.score])});
+  if(tr.length>1)sheets.push({name:'Training games',rows:tr});
+  /* Multi-part tests */
+  const ex=[['Test','Field','Value']];
+  Object.keys(S.exp||{}).forEach(function(k){const o=S.exp[k]||{};
+    Object.keys(o).forEach(function(f){const v=o[f];if(v===null||typeof v==='object')return;ex.push([k,f,v])})});
+  if(ex.length>1)sheets.push({name:'Multi-part tests',rows:ex});
+  return sheets;
+}
+async function exportExcel(){
+  const msg=$('#copy-msg');
+  try{
+    const sheets=exportSheets();
+    if(sheets.length===1&&sheets[0].rows.length<5){if(msg)msg.textContent='Nothing to export yet — finish an assessment or a practice first.';return}
+    const bytes=_xlsx(sheets);
+    const name='minds-eye-'+(S.pid||'results')+'-'+today()+'.xlsx';
+    const type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    const blob=new Blob([bytes],{type:type});
+    try{
+      const file=new File([blob],name,{type:type});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'Mind’s Eye results'});
+        if(msg)msg.textContent='Exported '+sheets.length+' sheets.';return}
+    }catch(e){if(e&&e.name==='AbortError'){if(msg)msg.textContent='';return}}
+    const url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(url)},10000);
+    if(msg)msg.textContent='Exported '+sheets.length+' sheets to '+name+'.';
+  }catch(e){if(msg)msg.textContent='Export failed: '+(e&&e.message?e.message:e)}
+}
 
 /* ---------- boot ---------- */
 initOnboarding();
