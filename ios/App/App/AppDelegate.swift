@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,7 +8,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // The Sound Echo training game plays tones through WebAudio. Under the default
+        // audio session those tones are silenced by the hardware ring/silent switch, so
+        // the game looks broken on any phone set to silent. .playback ignores that
+        // switch; .mixWithOthers leaves whatever the person is already listening to alone.
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            // Non-fatal: audio stays at the system default rather than taking the app down.
+        }
         return true
     }
 

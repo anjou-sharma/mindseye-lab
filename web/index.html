@@ -835,7 +835,27 @@ $('#reset').onclick=()=>{if($('#reset').dataset.arm){try{localStorage.removeItem
 function makeShape(){for(;;){const cells=[[0,0]];const set=new Set(['0,0']);while(cells.length<6){const [x,y]=pick(cells);const d=pick([[1,0],[-1,0],[0,1],[0,-1]]);const k=(x+d[0])+','+(y+d[1]);if(!set.has(k)){set.add(k);cells.push([x+d[0],y+d[1]])}}
   const norm=c=>{const mx=Math.min(...c.map(p=>p[0])),my=Math.min(...c.map(p=>p[1]));return c.map(p=>[p[0]-mx,p[1]-my]).sort().join('|')};let m=cells.map(p=>[-p[0],p[1]]),sym=false;for(let r=0;r<4;r++){if(norm(m)===norm(cells))sym=true;m=m.map(p=>[-p[1],p[0]])}if(!sym)return cells}}
 function drawShape(cv,cells,angle,mirror){const c=cv.getContext('2d');const w=cv.width,h=cv.height;c.clearRect(0,0,w,h);const cs=getComputedStyle(document.documentElement);c.save();c.translate(w/2,h/2);c.rotate(angle*Math.PI/180);if(mirror)c.scale(-1,1);const u=w/9;const cx=cells.reduce((a,p)=>a+p[0],0)/cells.length,cy=cells.reduce((a,p)=>a+p[1],0)/cells.length;c.fillStyle=cs.getPropertyValue('--accent').trim();c.strokeStyle=cs.getPropertyValue('--surface').trim();c.lineWidth=2;cells.forEach(p=>{c.fillRect((p[0]-cx-.5)*u,(p[1]-cy-.5)*u,u,u);c.strokeRect((p[0]-cx-.5)*u,(p[1]-cy-.5)*u,u,u)});c.restore()}
-let AC=null;function tone(f,dur=.35){try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0,AC.currentTime);g.gain.linearRampToValueAtTime(.3,AC.currentTime+.02);g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+dur);o.connect(g).connect(AC.destination);o.start();o.stop(AC.currentTime+dur)}catch(e){}}
+let AC=null;
+function audioCtx(){
+  if(!AC){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
+    try{AC=new C()}catch(e){return null}}
+  if(AC.state==='suspended'){try{AC.resume()}catch(e){}}
+  return AC;
+}
+/* iOS starts a WebAudio context suspended and re-suspends it on backgrounding.
+   Nudge it from the first real touch, and again whenever we come back. */
+(function(){
+  const kick=function(){const c=audioCtx();if(c&&c.state==='running'){
+    document.removeEventListener('touchend',kick,true);document.removeEventListener('click',kick,true)}};
+  document.addEventListener('touchend',kick,true);document.addEventListener('click',kick,true);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden&&AC)audioCtx()});
+  window.addEventListener('focus',function(){if(AC)audioCtx()});
+})();
+function tone(f,dur=.35){try{const c=audioCtx();if(!c)return;
+  const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.value=f;
+  g.gain.setValueAtTime(0,c.currentTime);g.gain.linearRampToValueAtTime(.3,c.currentTime+.02);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);
+  o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+dur)}catch(e){}}
 const NOTES=[262,330,392,523];
 
 /* ---------- play engine ---------- */
@@ -897,7 +917,9 @@ async function editGame(level){const n=Math.min(3+Math.floor((level-1)/2),6),edi
   const s2=stage('<p>What is now at position <b>'+(qi+1)+'</b>?</p><div class="chips">'+sh.map((o,i)=>'<div class="chip" data-i="'+i+'" style="border:0;background:none;width:auto;height:auto">'+shapeSVG(o.sh,o.col[1],52)+'</div>').join('')+'</div><p id="e-msg"></p>');
   const i=await new Promise(res=>s2.querySelectorAll('.chip').forEach(c=>c.onclick=()=>res(+c.dataset.i)));if(!G)return;const ok=sh[i]===truth;$('#e-msg').innerHTML='<span class="fb '+(ok?'ok':'no')+'">'+(ok?'Correct.':'It was a '+truth.col[0]+' '+truth.sh+'.')+'</span>'+render(cur);await wait(1600);return ok}
 async function soundGame(level){const len=2+Math.ceil(level/2),gap=Math.max(260,600-level*30);const seq=Array.from({length:len},()=>rnd(4));const names=['do','mi','sol','do′'];
-  const s=stage('<p>Listen, then replay it silently in your head.</p><div class="tones">'+names.map((n,i)=>'<button data-n="'+i+'" disabled>'+n+'</button>').join('')+'</div><p id="s-msg" class="muted">Playing…</p>');const btns=[...s.querySelectorAll('[data-n]')];await wait(400);
+  const _ac=audioCtx();
+  const warn=(!_ac||_ac.state!=='running')?'<p class="muted" style="font-size:.85rem">If you hear nothing, check the side switch is not set to silent.</p>':'';
+  const s=stage('<p>Listen, then replay it silently in your head.</p>'+warn+'<div class="tones">'+names.map((n,i)=>'<button data-n="'+i+'" disabled>'+n+'</button>').join('')+'</div><p id="s-msg" class="muted">Playing…</p>');const btns=[...s.querySelectorAll('[data-n]')];await wait(400);
   for(const n of seq){if(!G)return;tone(NOTES[n]);btns[n].classList.add('ping');await wait(gap);btns[n].classList.remove('ping');await wait(120)}if(!G)return;
   $('#s-msg').textContent='Now hear it in your mind, then tap it back ('+len+' notes).';btns.forEach(b=>b.disabled=false);const got=[];await new Promise(res=>btns.forEach((b,i)=>b.onclick=()=>{tone(NOTES[i],.25);got.push(i);if(got.length===len)res()}));if(!G)return;
   const ok=got.join()===seq.join();$('#s-msg').innerHTML='<span class="fb '+(ok?'ok':'no')+'">'+(ok?'Perfect echo.':'It was '+seq.map(n=>names[n]).join(' '))+'</span>';btns.forEach(b=>b.disabled=true);await wait(1400);return ok}
