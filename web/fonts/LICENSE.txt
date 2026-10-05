@@ -1,0 +1,11 @@
+Fonts bundled with Mind's Eye Lab
+=================================
+
+Syne — Copyright (c) Bonjour Monsieur (bonjourmonsieur.com)
+IBM Plex Sans, IBM Plex Mono — Copyright (c) IBM Corp.
+
+Both families are licensed under the SIL Open Font License, Version 1.1.
+Full licence text: https://openfontlicense.org/
+
+Only the Latin subsets are included, converted to WOFF2 by Google Fonts.
+These files are bundled so the app makes no network requests at runtime.

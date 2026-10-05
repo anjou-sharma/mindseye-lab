@@ -70,17 +70,17 @@
       "desc": "How long can you keep a picture steady? 90 seconds."
     },
     "draw": {
-      "status": "optional",
+      "status": "hidden",
       "label": "Draw it from memory",
       "desc": "Study a scene, then draw it. Objects vs. layout, as in the drawing studies."
     },
     "rivalry": {
-      "status": "optional",
+      "status": "hidden",
       "label": "Binocular rivalry (needs red/cyan glasses)",
       "desc": "The lab-standard objective imagery test, with cheap anaglyph glasses. 16 trials."
     },
     "pupil": {
-      "status": "optional",
+      "status": "hidden",
       "label": "Pupil & imagery (camera, experimental)",
       "desc": "Imagine bright and dark shapes while the front camera measures your pupils."
     }

@@ -1,8 +1,14 @@
 {
   "appId": "edu.duke.imclab.mindseye",
-  "appName": "Mind's Eye Lab",
+  "appName": "Mind's Eye",
   "webDir": "web",
   "bundledWebRuntime": false,
-  "ios": { "contentInset": "automatic", "backgroundColor": "#f4f2fa" },
-  "server": { "iosScheme": "capacitor" }
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#f4f2fa",
+    "zoomEnabled": false
+  },
+  "server": {
+    "iosScheme": "capacitor"
+  }
 }
